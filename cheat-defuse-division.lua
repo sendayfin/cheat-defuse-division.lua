@@ -1,209 +1,638 @@
--- МОБИЛЬНЫЙ AIMBOT С КРУГОМ ПРИЦЕЛА
--- ОДНА КНОПКА ВКЛ/ВЫКЛ, ЦЕЛИТСЯ ЧЕРЕЗ СТЕНЫ
+-- ============================================================
+-- 🔥 HvH ULTRA FULL (Menu + Functions) — Mobile
+-- ============================================================
 
-local aimEnabled = true
-local showingCircle = true
-local targetPart = "Head" -- Целимся в голову
-
--- Сервисы
 local Players = game:GetService("Players")
-local Workspace = game:GetService("Workspace")
+local UserInput = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
-local Camera = Workspace.CurrentCamera
+local TweenService = game:GetService("TweenService")
+local VirtualInput = game:GetService("VirtualInputManager")
+local Lighting = game:GetService("Lighting")
+local Camera = workspace.CurrentCamera
 
--- Локальный игрок
-local LocalPlayer = Players.LocalPlayer
+local LP
+repeat wait(0.5) LP = Players.LocalPlayer until LP
+local Char = LP.Character or LP.CharacterAdded:Wait()
+local Gui
+repeat wait(0.3) Gui = LP:FindFirstChild("PlayerGui") until Gui
 
--- Создаем круг прицела
-local circle = Instance.new("Frame")
-circle.Size = UDim2.new(0, 60, 0, 60)
-circle.Position = UDim2.new(0.5, -30, 0.5, -30)
-circle.BackgroundTransparency = 1
-circle.BorderSizePixel = 0
+-- === НАСТРОЙКИ (все по умолчанию выключены) ===
+local Settings = {
+    Smooth = 0.3,
+    FOV = 120,
+    Aimbot = false,
+    AutoShoot = false,
+    Bunnyhop = false,
+    Skybox = false,
+    Ring = false,
+    RingSize = 3,
+    FastWalk = false,
+    Fly = false,
+}
 
-local outline = Instance.new("UICorner")
-outline.CornerRadius = UDim.new(1, 0)
-outline.Parent = circle
+-- === GUI МЕНЮ ===
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Parent = Gui
+ScreenGui.Name = "HvH_Menu"
+ScreenGui.ResetOnSpawn = false
 
-local innerCircle = Instance.new("Frame")
-innerCircle.Size = UDim2.new(0, 50, 0, 50)
-innerCircle.Position = UDim2.new(0.5, -25, 0.5, -25)
-innerCircle.BackgroundTransparency = 0.7
-innerCircle.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
-innerCircle.BorderSizePixel = 0
+local Main = Instance.new("Frame")
+Main.Parent = ScreenGui
+Main.Size = UDim2.new(0.65, 0, 0.85, 0)
+Main.Position = UDim2.new(0.175, 0, 0.075, 0)
+Main.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+Main.BackgroundTransparency = 0.25
+Main.BorderSizePixel = 0
+Main.ClipsDescendants = true
+Main.Visible = false
+local Corner = Instance.new("UICorner")
+Corner.Parent = Main
+Corner.CornerRadius = UDim.new(0, 20)
 
-local innerCorner = Instance.new("UICorner")
-innerCorner.CornerRadius = UDim.new(1, 0)
-innerCorner.Parent = innerCircle
+-- Плавающие картинки (25 шт.)
+local ParticleContainer = Instance.new("Frame")
+ParticleContainer.Parent = Main
+ParticleContainer.Size = UDim2.new(1, 0, 1, 0)
+ParticleContainer.BackgroundTransparency = 1
+ParticleContainer.ZIndex = 0
 
--- Экранный интерфейс
-local screenGui = Instance.new("ScreenGui")
-screenGui.Parent = game:GetService("CoreGui") or LocalPlayer:WaitForChild("PlayerGui")
+local Floats = {}
+for i = 1, 25 do
+    local img = Instance.new("ImageLabel")
+    img.Parent = ParticleContainer
+    img.Size = UDim2.new(0, math.random(8, 18), 0, math.random(8, 18))
+    img.Position = UDim2.new(math.random(5, 90)/100, 0, math.random(5, 90)/100, 0)
+    img.BackgroundTransparency = 1
+    img.Image = "rbxassetid://3040518533"
+    img.ImageTransparency = 0.3 + math.random() * 0.5
+    img.ZIndex = 0
+    local data = {
+        frame = img,
+        phase = math.random() * 2 * math.pi,
+        baseX = img.Position.X.Scale,
+        baseY = img.Position.Y.Scale,
+        rotSpeed = math.random() * 2 - 1
+    }
+    table.insert(Floats, data)
+end
 
-circle.Parent = screenGui
-innerCircle.Parent = circle
+RunService.Heartbeat:Connect(function(dt)
+    if not Main.Visible then return end
+    for _, f in ipairs(Floats) do
+        local x = f.baseX + math.sin(tick() * 0.5 + f.phase) * 0.03
+        local y = f.baseY + math.cos(tick() * 0.6 + f.phase * 0.7) * 0.03
+        f.frame.Position = UDim2.new(x, 0, y, 0)
+        f.frame.Rotation = f.frame.Rotation + f.rotSpeed * dt * 20
+        local trans = 0.3 + 0.5 * (0.5 + 0.5 * math.sin(tick() * 0.7 + f.phase))
+        f.frame.ImageTransparency = trans
+    end
+end)
 
--- Кнопка вкл/выкл аимбота
-local toggleButton = Instance.new("TextButton")
-toggleButton.Size = UDim2.new(0, 120, 0, 50)
-toggleButton.Position = UDim2.new(1, -130, 1, -60)
-toggleButton.BackgroundColor3 = Color3.fromRGB(50, 255, 50)
-toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-toggleButton.Text = "AIM: ON"
-toggleButton.Font = Enum.Font.SourceSansBold
-toggleButton.TextSize = 18
-toggleButton.Parent = screenGui
+-- Заголовок
+local Header = Instance.new("Frame")
+Header.Parent = Main
+Header.Size = UDim2.new(1, 0, 0, 40)
+Header.BackgroundColor3 = Color3.fromRGB(230, 230, 240)
+Header.BackgroundTransparency = 0.3
+Header.BorderSizePixel = 0
+local HCorner = Instance.new("UICorner")
+HCorner.Parent = Header
+HCorner.CornerRadius = UDim.new(0, 20)
 
--- Функция поиска ближайшего врага
-local function findClosestEnemy()
-    local closest = nil
-    local closestDistance = math.huge
-    
+local Title = Instance.new("TextLabel")
+Title.Parent = Header
+Title.Size = UDim2.new(0.7, 0, 1, 0)
+Title.Position = UDim2.new(0.05, 0, 0, 0)
+Title.BackgroundTransparency = 1
+Title.Text = "✦ HvH ULTRA ✦"
+Title.TextColor3 = Color3.fromRGB(40, 40, 60)
+Title.TextScaled = true
+Title.Font = Enum.Font.GothamBold
+
+local HideBtn = Instance.new("TextButton")
+HideBtn.Parent = Header
+HideBtn.Size = UDim2.new(0, 55, 0, 30)
+HideBtn.Position = UDim2.new(1, -60, 0, 5)
+HideBtn.Text = "Скрыть"
+HideBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+HideBtn.TextScaled = true
+HideBtn.BackgroundColor3 = Color3.fromRGB(150, 150, 180)
+HideBtn.BackgroundTransparency = 0.2
+HideBtn.BorderSizePixel = 0
+local HBCorner = Instance.new("UICorner")
+HBCorner.Parent = HideBtn
+HBCorner.CornerRadius = UDim.new(0, 10)
+
+-- Снежинка
+local Snowflake = Instance.new("TextButton")
+Snowflake.Parent = ScreenGui
+Snowflake.Size = UDim2.new(0, 50, 0, 50)
+Snowflake.Position = UDim2.new(0.85, 0, 0.85, 0)
+Snowflake.Text = "❄️"
+Snowflake.TextColor3 = Color3.fromRGB(80, 80, 120)
+Snowflake.TextScaled = true
+Snowflake.BackgroundColor3 = Color3.fromRGB(240, 240, 250)
+Snowflake.BackgroundTransparency = 0.2
+Snowflake.BorderSizePixel = 1
+Snowflake.BorderColor3 = Color3.fromRGB(180, 180, 200)
+local SCorner = Instance.new("UICorner")
+SCorner.Parent = Snowflake
+SCorner.CornerRadius = UDim.new(0, 25)
+Snowflake.Visible = false
+
+-- Анимации окна
+local function AnimateOpen()
+    Main.Visible = true
+    Main.Size = UDim2.new(0.65, 0, 0.85, 0)
+    local startSize = UDim2.new(0.65, 0, 0.01, 0)
+    local startTrans = 0.7
+    Main.Size = startSize
+    Main.BackgroundTransparency = startTrans
+    local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+    local goal = {Size = UDim2.new(0.65, 0, 0.85, 0), BackgroundTransparency = 0.25}
+    local tween = TweenService:Create(Main, tweenInfo, goal)
+    tween:Play()
+end
+
+local function AnimateClose()
+    local tweenInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+    local goal = {Size = UDim2.new(0.65, 0, 0.01, 0), BackgroundTransparency = 0.7}
+    local tween = TweenService:Create(Main, tweenInfo, goal)
+    tween:Play()
+    tween.Completed:Connect(function()
+        Main.Visible = false
+    end)
+end
+
+local function HideMenu()
+    AnimateClose()
+    Snowflake.Visible = true
+end
+
+local function ShowMenu()
+    Snowflake.Visible = false
+    AnimateOpen()
+end
+
+HideBtn.Activated:Connect(HideMenu)
+Snowflake.Activated:Connect(ShowMenu)
+AnimateOpen()
+
+-- Перетаскивание
+local Drag, DragStart, StartPos = false
+Header.InputBegan:Connect(function(I)
+    if I.UserInputType == Enum.UserInputType.Touch then
+        Drag = true
+        DragStart = I.Position
+        StartPos = Main.Position
+    end
+end)
+Header.InputEnded:Connect(function() Drag = false end)
+UserInput.InputChanged:Connect(function(I)
+    if Drag and I.UserInputType == Enum.UserInputType.Touch then
+        local Delta = I.Position - DragStart
+        Main.Position = UDim2.new(StartPos.X.Scale, StartPos.X.Offset + Delta.X, StartPos.Y.Scale, StartPos.Y.Offset + Delta.Y)
+    end
+end)
+
+-- Вкладки
+local TabBar = Instance.new("Frame")
+TabBar.Parent = Main
+TabBar.Size = UDim2.new(1, 0, 0, 35)
+TabBar.Position = UDim2.new(0, 0, 0, 40)
+TabBar.BackgroundTransparency = 1
+TabBar.BorderSizePixel = 0
+
+local Tabs = {"Aimbot", "Visuals", "Misc"}
+local TabButtons = {}
+
+for i, name in ipairs(Tabs) do
+    local btn = Instance.new("TextButton")
+    btn.Parent = TabBar
+    btn.Size = UDim2.new(1/3, 0, 1, 0)
+    btn.Position = UDim2.new((i-1)/3, 0, 0, 0)
+    btn.BackgroundColor3 = (i == 1) and Color3.fromRGB(200, 200, 220) or Color3.fromRGB(230, 230, 240)
+    btn.BackgroundTransparency = 0.2
+    btn.Text = name
+    btn.TextColor3 = (i == 1) and Color3.fromRGB(30, 30, 50) or Color3.fromRGB(100, 100, 120)
+    btn.TextScaled = true
+    btn.Font = Enum.Font.GothamBold
+    btn.BorderSizePixel = 0
+    local c = Instance.new("UICorner")
+    c.Parent = btn
+    c.CornerRadius = UDim.new(0, 6)
+    table.insert(TabButtons, btn)
+end
+
+-- Контейнеры вкладок
+local Content = Instance.new("Frame")
+Content.Parent = Main
+Content.Size = UDim2.new(1, 0, 1, -75)
+Content.Position = UDim2.new(0, 0, 0, 75)
+Content.BackgroundTransparency = 1
+Content.BorderSizePixel = 0
+
+local function MakeScrollTab()
+    local sc = Instance.new("ScrollingFrame")
+    sc.Parent = Content
+    sc.Size = UDim2.new(1, 0, 1, 0)
+    sc.BackgroundTransparency = 1
+    sc.BorderSizePixel = 0
+    sc.ScrollBarThickness = 3
+    sc.ScrollBarImageColor3 = Color3.fromRGB(160, 160, 180)
+    sc.CanvasSize = UDim2.new(0, 0, 0, 400)
+    return sc
+end
+
+local TabAimbot = MakeScrollTab()
+local TabVisuals = MakeScrollTab()
+local TabMisc = MakeScrollTab()
+TabVisuals.Visible = false
+TabMisc.Visible = false
+
+for i, btn in ipairs(TabButtons) do
+    btn.Activated:Connect(function()
+        for _, b in pairs(TabButtons) do
+            b.BackgroundColor3 = Color3.fromRGB(230, 230, 240)
+            b.TextColor3 = Color3.fromRGB(100, 100, 120)
+        end
+        btn.BackgroundColor3 = Color3.fromRGB(200, 200, 220)
+        btn.TextColor3 = Color3.fromRGB(30, 30, 50)
+        TabAimbot.Visible = (i == 1)
+        TabVisuals.Visible = (i == 2)
+        TabMisc.Visible = (i == 3)
+    end)
+end
+
+-- === АНИМИРОВАННЫЙ ПЕРЕКЛЮЧАТЕЛЬ ===
+local function AddToggleSwitch(Parent, Label, Default, Callback, Y)
+    local f = Instance.new("Frame")
+    f.Parent = Parent
+    f.Size = UDim2.new(1, 0, 0, 40)
+    f.Position = UDim2.new(0, 0, 0, Y)
+    f.BackgroundTransparency = 1
+    f.BorderSizePixel = 0
+
+    local lbl = Instance.new("TextLabel")
+    lbl.Parent = f
+    lbl.Size = UDim2.new(0.7, 0, 1, 0)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = Label
+    lbl.TextColor3 = Color3.fromRGB(40, 40, 60)
+    lbl.TextSize = 16
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+
+    local switch = Instance.new("Frame")
+    switch.Parent = f
+    switch.Size = UDim2.new(0, 50, 0, 28)
+    switch.Position = UDim2.new(0.85, 0, 0.15, 0)
+    switch.BackgroundColor3 = Default and Color3.fromRGB(80, 200, 80) or Color3.fromRGB(180, 180, 190)
+    switch.BorderSizePixel = 0
+    local swCorner = Instance.new("UICorner")
+    swCorner.Parent = switch
+    swCorner.CornerRadius = UDim.new(0, 14)
+
+    local knob = Instance.new("Frame")
+    knob.Parent = switch
+    knob.Size = UDim2.new(0, 22, 0, 22)
+    knob.Position = Default and UDim2.new(0, 26, 0, 3) or UDim2.new(0, 3, 0, 3)
+    knob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    knob.BorderSizePixel = 0
+    local knCorner = Instance.new("UICorner")
+    knCorner.Parent = knob
+    knCorner.CornerRadius = UDim.new(0, 11)
+
+    local state = Default
+    local function UpdateSwitch(newState)
+        state = newState
+        local bgGoal = {BackgroundColor3 = state and Color3.fromRGB(80, 200, 80) or Color3.fromRGB(180, 180, 190)}
+        local bgTween = TweenService:Create(switch, TweenInfo.new(0.15, Enum.EasingStyle.Quad), bgGoal)
+        bgTween:Play()
+        local knobGoal = {Position = state and UDim2.new(0, 26, 0, 3) or UDim2.new(0, 3, 0, 3)}
+        local knobTween = TweenService:Create(knob, TweenInfo.new(0.15, Enum.EasingStyle.Quad), knobGoal)
+        knobTween:Play()
+        Callback(state)
+    end
+    switch.InputBegan:Connect(function(I)
+        if I.UserInputType == Enum.UserInputType.Touch then
+            UpdateSwitch(not state)
+        end
+    end)
+    UpdateSwitch(Default)
+    return switch
+end
+
+-- Слайдер
+local function AddSlider(Parent, Label, Min, Max, Default, Callback, Y)
+    local f = Instance.new("Frame")
+    f.Parent = Parent
+    f.Size = UDim2.new(1, 0, 0, 55)
+    f.Position = UDim2.new(0, 0, 0, Y)
+    f.BackgroundTransparency = 1
+    f.BorderSizePixel = 0
+
+    local lbl = Instance.new("TextLabel")
+    lbl.Parent = f
+    lbl.Size = UDim2.new(1, 0, 0, 22)
+    lbl.Position = UDim2.new(0, 0, 0, 0)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = Label .. ": " .. tostring(Default)
+    lbl.TextColor3 = Color3.fromRGB(40, 40, 60)
+    lbl.TextSize = 16
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+
+    local track = Instance.new("Frame")
+    track.Parent = f
+    track.Size = UDim2.new(0.9, 0, 0, 12)
+    track.Position = UDim2.new(0.05, 0, 0.45, 0)
+    track.BackgroundColor3 = Color3.fromRGB(200, 200, 210)
+    track.BorderSizePixel = 0
+    local trc = Instance.new("UICorner")
+    trc.Parent = track
+    trc.CornerRadius = UDim.new(0, 6)
+
+    local fill = Instance.new("Frame")
+    fill.Parent = track
+    fill.Size = UDim2.new((Default - Min) / (Max - Min), 0, 1, 0)
+    fill.BackgroundColor3 = Color3.fromRGB(80, 150, 220)
+    fill.BorderSizePixel = 0
+    local fic = Instance.new("UICorner")
+    fic.Parent = fill
+    fic.CornerRadius = UDim.new(0, 6)
+
+    local val = Default
+    local function Update(x)
+        local rel = math.clamp((x - track.AbsolutePosition.X) / track.AbsoluteSize.X, 0, 1)
+        val = Min + (Max - Min) * rel
+        fill.Size = UDim2.new(rel, 0, 1, 0)
+        lbl.Text = Label .. ": " .. string.format("%.1f", val)
+        Callback(val)
+    end
+
+    track.InputBegan:Connect(function(I)
+        if I.UserInputType == Enum.UserInputType.Touch then Update(I.Position.X) end
+    end)
+    track.InputChanged:Connect(function(I)
+        if I.UserInputType == Enum.UserInputType.Touch and I.Position then Update(I.Position.X) end
+    end)
+    return f
+end
+
+-- Заполнение вкладок (все выключены)
+local y = 0
+AddSlider(TabAimbot, "Smoothness", 0, 1, 0.3, function(v) Settings.Smooth = v end, y); y = y + 60
+AddSlider(TabAimbot, "FOV", 60, 180, 120, function(v) Settings.FOV = v; Camera.FieldOfView = v end, y); y = y + 60
+AddToggleSwitch(TabAimbot, "Aimbot", false, function(v) Settings.Aimbot = v end, y); y = y + 45
+AddToggleSwitch(TabAimbot, "AutoShoot", false, function(v) Settings.AutoShoot = v end, y); y = y + 45
+AddToggleSwitch(TabAimbot, "Bunnyhop", false, function(v) Settings.Bunnyhop = v end, y); y = y + 45
+TabAimbot.CanvasSize = UDim2.new(0, 0, 0, y + 20)
+
+y = 0
+AddToggleSwitch(TabVisuals, "Skybox", false, function(v) Settings.Skybox = v; Lighting.Ambient = v and Color3.fromRGB(80, 80, 200) or Color3.fromRGB(127,127,127) end, y); y = y + 45
+AddToggleSwitch(TabVisuals, "Ring", false, function(v) Settings.Ring = v end, y); y = y + 45
+AddSlider(TabVisuals, "Ring Size", 1, 5, 3, function(v) Settings.RingSize = v end, y); y = y + 60
+TabVisuals.CanvasSize = UDim2.new(0, 0, 0, y + 20)
+
+y = 0
+AddToggleSwitch(TabMisc, "Fast Walk", false, function(v) Settings.FastWalk = v end, y); y = y + 45
+AddToggleSwitch(TabMisc, "Fly", false, function(v) Settings.Fly = v end, y); y = y + 45
+TabMisc.CanvasSize = UDim2.new(0, 0, 0, y + 20)
+
+-- === ИНФОРМАЦИОННАЯ СТРОКА (owner) ===
+local Info = Instance.new("TextLabel")
+Info.Parent = Main
+Info.Size = UDim2.new(1, 0, 0, 22)
+Info.Position = UDim2.new(0, 0, 1, -22)
+Info.BackgroundTransparency = 1
+Info.Text = "owner - tgk: @sendayfin"
+Info.TextColor3 = Color3.fromRGB(100, 100, 120)
+Info.TextSize = 14
+Info.TextScaled = true
+Info.Font = Enum.Font.Gotham
+
+print("✅ Меню загружено. Все функции выключены.")
+-- ============================================================
+-- === ИГРОВОЙ ФУНКЦИОНАЛ ===
+-- ============================================================
+
+-- Переменные для ролей
+local MyRole = nil  -- "Sheriff", "Murderer", "Innocent"
+local RoleLabels = {}  -- для BillboardGui над игроками
+
+-- Функция определения роли по оружию в руке
+local function GetRoleFromCharacter(character)
+    if not character then return nil end
+    local rightHand = character:FindFirstChild("RightHand")
+    if not rightHand then return nil end
+    local tool = rightHand:FindFirstChildOfClass("Tool")
+    if not tool then return "Innocent" end
+    local name = tool.Name:lower()
+    if name:find("knife") or name:find("murder") or name:find("blade") then
+        return "Murderer"
+    elseif name:find("gun") or name:find("pistol") or name:find("sheriff") then
+        return "Sheriff"
+    end
+    return "Innocent"
+end
+
+-- Обновление ролей и ESP
+local function UpdateRolesAndESP()
+    local myRole = GetRoleFromCharacter(Char)
+    if myRole then MyRole = myRole end
+
     for _, player in pairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and player.Character then
-            local humanoid = player.Character:FindFirstChild("Humanoid")
-            local head = player.Character:FindFirstChild("Head")
-            
-            if humanoid and humanoid.Health > 0 and head then
-                -- Не целиться в свою команду
-                if LocalPlayer.Team and player.Team and LocalPlayer.Team == player.Team then
-                    continue
-                end
-                
-                local distance = (Camera.CFrame.Position - head.Position).Magnitude
-                if distance < closestDistance then
-                    closestDistance = distance
-                    closest = player
-                end
-            end
-        end
-    end
-    
-    return closest
-end
-
--- Функция аимбота
-local function aimAtTarget()
-    if not aimEnabled then return end
-    if not LocalPlayer.Character then return end
-    
-    local enemy = findClosestEnemy()
-    if not enemy or not enemy.Character then return end
-    
-    local target = enemy.Character:FindFirstChild(targetPart)
-    if not target then
-        target = enemy.Character:FindFirstChild("HumanoidRootPart")
-    end
-    if not target then return end
-    
-    -- Меняем цвет круга при наведении
-    innerCircle.BackgroundColor3 = Color3.fromRGB(50, 255, 50)
-    
-    -- Прицеливаемся на цель
-    Camera.CFrame = CFrame.lookAt(Camera.CFrame.Position, target.Position)
-    
-    return enemy
-end
-
--- Основной цикл
-RunService.RenderStepped:Connect(function()
-    if aimEnabled then
-        local target = aimAtTarget()
-        if not target then
-            innerCircle.BackgroundColor3 = Color3.fromRGB(255, 50, 50) -- Красный если нет цели
-        end
-    else
-        innerCircle.BackgroundColor3 = Color3.fromRGB(100, 100, 100) -- Серый если выключен
-    end
-end)
-
--- Переключение аимбота
-toggleButton.MouseButton1Click:Connect(function()
-    aimEnabled = not aimEnabled
-    
-    if aimEnabled then
-        toggleButton.BackgroundColor3 = Color3.fromRGB(50, 255, 50)
-        toggleButton.Text = "AIM: ON"
-        innerCircle.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
-    else
-        toggleButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
-        toggleButton.Text = "AIM: OFF"
-        innerCircle.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
-    end
-end)
-
--- Кнопка для скрытия/показа круга
-local circleButton = Instance.new("TextButton")
-circleButton.Size = UDim2.new(0, 120, 0, 50)
-circleButton.Position = UDim2.new(1, -130, 1, -120)
-circleButton.BackgroundColor3 = Color3.fromRGB(100, 100, 255)
-circleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-circleButton.Text = "CIRCLE: ON"
-circleButton.Font = Enum.Font.SourceSansBold
-circleButton.TextSize = 16
-circleButton.Parent = screenGui
-
-circleButton.MouseButton1Click:Connect(function()
-    showingCircle = not showingCircle
-    circle.Visible = showingCircle
-    
-    if showingCircle then
-        circleButton.Text = "CIRCLE: ON"
-        circleButton.BackgroundColor3 = Color3.fromRGB(100, 100, 255)
-    else
-        circleButton.Text = "CIRCLE: OFF"
-        circleButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
-    end
-end)
-
--- Информационная панель
-local infoLabel = Instance.new("TextLabel")
-infoLabel.Size = UDim2.new(0, 200, 0, 30)
-infoLabel.Position = UDim2.new(0.5, -100, 0, 10)
-infoLabel.BackgroundTransparency = 0.7
-infoLabel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-infoLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-infoLabel.Text = "SWILL AIMBOT LOADED"
-infoLabel.TextSize = 16
-infoLabel.Parent = screenGui
-
--- Авто-обновление информации
-spawn(function()
-    while true do
-        wait(2)
-        if aimEnabled then
-            local enemy = findClosestEnemy()
-            if enemy then
-                infoLabel.Text = "TARGET: " .. enemy.Name
-            else
-                infoLabel.Text = "NO TARGETS"
-            end
+        if player == LP then
+            -- своя роль уже есть
         else
-            infoLabel.Text = "AIMBOT OFF"
+            local char = player.Character
+            if char and char:FindFirstChild("HumanoidRootPart") then
+                local role = GetRoleFromCharacter(char)
+                -- Создаём или обновляем BillboardGui
+                local label = RoleLabels[player]
+                if not label then
+                    local bill = Instance.new("BillboardGui")
+                    bill.Parent = char:FindFirstChild("HumanoidRootPart") or char
+                    bill.Size = UDim2.new(0, 80, 0, 30)
+                    bill.AlwaysOnTop = true
+                    local text = Instance.new("TextLabel", bill)
+                    text.Size = UDim2.new(1, 0, 1, 0)
+                    text.BackgroundTransparency = 1
+                    text.TextScaled = true
+                    text.TextColor3 = Color3.fromRGB(255, 255, 255)
+                    text.TextStrokeTransparency = 0.3
+                    label = bill
+                    RoleLabels[player] = label
+                end
+                -- Обновляем текст и цвет
+                local textLabel = label:FindFirstChildOfClass("TextLabel")
+                if textLabel then
+                    local color = Color3.fromRGB(255,255,255)
+                    if role == "Sheriff" then
+                        color = Color3.fromRGB(0, 200, 255)
+                    elseif role == "Murderer" then
+                        color = Color3.fromRGB(255, 50, 50)
+                    else
+                        color = Color3.fromRGB(200, 200, 200)
+                    end
+                    textLabel.Text = role or "Unknown"
+                    textLabel.TextColor3 = color
+                end
+                -- Прикрепляем к персонажу
+                if label.Parent ~= char:FindFirstChild("HumanoidRootPart") then
+                    label.Parent = char:FindFirstChild("HumanoidRootPart")
+                end
+            else
+                -- если персонаж исчез, удаляем метку
+                if RoleLabels[player] then
+                    RoleLabels[player]:Destroy()
+                    RoleLabels[player] = nil
+                end
+            end
+        end
+    end
+end
+
+-- Вызываем обновление каждую секунду
+spawn(function()
+    while wait(1) do
+        pcall(UpdateRolesAndESP)
+    end
+end)
+
+-- === AIMBOT + AUTOSHOOT ===
+local function GetClosestEnemy(myRole)
+    local best = nil
+    local bestDist = math.huge
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LP and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            local char = player.Character
+            local role = GetRoleFromCharacter(char)
+            -- Для шерифа цель – мардер, для мардера – шериф
+            if (myRole == "Sheriff" and role == "Murderer") or (myRole == "Murderer" and role == "Sheriff") then
+                local root = char.HumanoidRootPart
+                local pos, onScreen = Camera:WorldToViewportPoint(root.Position)
+                if onScreen then
+                    local dist = (root.Position - Camera.CFrame.Position).Magnitude
+                    if dist < bestDist then
+                        bestDist = dist
+                        best = player
+                    end
+                end
+            end
+        end
+    end
+    return best
+end
+
+RunService.RenderStepped:Connect(function()
+    if not Settings.Aimbot and not Settings.AutoShoot then return end
+    if not MyRole or (MyRole ~= "Sheriff" and MyRole ~= "Murderer") then return end
+
+    local target = GetClosestEnemy(MyRole)
+    if not target or not target.Character then return end
+    local root = target.Character:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+
+    local aimPos = root.Position + Vector3.new(0, 1.5, 0)
+    local newCFrame = CFrame.new(Camera.CFrame.Position, aimPos)
+
+    if Settings.Aimbot then
+        Camera.CFrame = Camera.CFrame:Lerp(newCFrame, Settings.Smooth)
+    end
+
+    if Settings.AutoShoot then
+        -- Определяем, какое оружие у нас
+        local myTool = Char:FindFirstChild("RightHand") and Char.RightHand:FindFirstChildOfClass("Tool")
+        if myTool then
+            local name = myTool.Name:lower()
+            if name:find("gun") or name:find("pistol") then
+                -- Шериф стреляет
+                VirtualInput:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+                wait(0.05)
+                VirtualInput:SendMouseButtonEvent(0, 0, 0, false, game, 0)
+            elseif name:find("knife") or name:find("blade") then
+                -- Мардер кидает нож (клавиша Q)
+                VirtualInput:SendKeyEvent(true, Enum.KeyCode.Q, false, game)
+                wait(0.05)
+                VirtualInput:SendKeyEvent(false, Enum.KeyCode.Q, false, game)
+            end
         end
     end
 end)
 
--- Удаление скрипта
-local unloadButton = Instance.new("TextButton")
-unloadButton.Size = UDim2.new(0, 120, 0, 50)
-unloadButton.Position = UDim2.new(0, 10, 1, -60)
-unloadButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
-unloadButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-unloadButton.Text = "UNLOAD"
-unloadButton.Font = Enum.Font.SourceSansBold
-unloadButton.TextSize = 18
-unloadButton.Parent = screenGui
-
-unloadButton.MouseButton1Click:Connect(function()
-    screenGui:Destroy()
-    print("Aimbot выключен")
+-- === BUNNYHOP ===
+local JumpCooldown = 0
+RunService.Heartbeat:Connect(function(dt)
+    if not Settings.Bunnyhop then return end
+    local humanoid = Char:FindFirstChildOfClass("Humanoid")
+    if not humanoid then return end
+    if humanoid.MoveDirection.Magnitude > 0.5 and humanoid.FloorMaterial ~= Enum.Material.Air then
+        if tick() - JumpCooldown > 0.12 then
+            VirtualInput:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
+            wait(0.02)
+            VirtualInput:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+            JumpCooldown = tick()
+        end
+    end
 end)
 
-print("====================================")
-print("SWILL MOBILE AIMBOT АКТИВИРОВАН")
-print("Управление:")
-print("1. Зеленая кнопка - AIM ON/OFF")
-print("2. Синяя кнопка - круг прицела")
-print("3. Красная кнопка - удалить скрипт")
-print("====================================")
+-- === RING ===
+local RingPart = nil
+RunService.Heartbeat:Connect(function()
+    if Settings.Ring then
+        if not RingPart then
+            RingPart = Instance.new("Part")
+            RingPart.Shape = Enum.PartType.Cylinder
+            RingPart.Material = Enum.Material.Neon
+            RingPart.Size = Vector3.new(Settings.RingSize * 1.2, 0.1, Settings.RingSize * 1.2)
+            RingPart.CanCollide = false
+            RingPart.Anchored = true
+            RingPart.Transparency = 0.5
+            RingPart.BrickColor = BrickColor.new("Bright blue")
+            RingPart.Parent = workspace
+        else
+            RingPart.Size = Vector3.new(Settings.RingSize * 1.2, 0.1, Settings.RingSize * 1.2)
+        end
+        if Char and Char:FindFirstChild("HumanoidRootPart") then
+            local root = Char.HumanoidRootPart
+            RingPart.CFrame = CFrame.new(root.Position.X, 0.2, root.Position.Z)
+            RingPart.Rotation = RingPart.Rotation + Vector3.new(0, 3, 0)
+        end
+    else
+        if RingPart then
+            RingPart:Destroy()
+            RingPart = nil
+        end
+    end
+end)
+
+-- === FAST WALK ===
+RunService.Heartbeat:Connect(function()
+    local humanoid = Char:FindFirstChildOfClass("Humanoid")
+    if not humanoid then return end
+    if Settings.FastWalk then
+        humanoid.WalkSpeed = 30
+    else
+        humanoid.WalkSpeed = 16  -- стандарт
+    end
+end)
+
+-- === FLY ===
+local FlyEnabled = false
+RunService.Heartbeat:Connect(function()
+    local humanoid = Char:FindFirstChildOfClass("Humanoid")
+    if not humanoid then return end
+    if Settings.Fly then
+        if not FlyEnabled then
+            humanoid.PlatformStand = true
+            FlyEnabled = true
+        end
+    else
+        if FlyEnabled then
+            humanoid.PlatformStand = false
+            FlyEnabled = false
+        end
+    end
+end)
+
+print("✅ Весь функционал активирован.")
