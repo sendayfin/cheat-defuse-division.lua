@@ -1,0 +1,1 @@
+loadstring(game:HttpGet("https://raw.githubusercontent.com/sendayfin/cheat-defuse-division.lua/refs/heads/main/base.lua"))()
